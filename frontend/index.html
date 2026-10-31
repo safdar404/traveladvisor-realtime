@@ -5,7 +5,7 @@
 </style></head><body><div class="panel" id="panel"><div class="top"><strong>🎧 Voice studio</strong><span id="state" class="status" role="status">Not connected</span><span id="timer">00:00</span></div><div class="workspace"><div class="console"><div class="orb">🤖</div><div class="controls"><button class="primary" id="start" disabled>🎙️ Start voice</button><button id="textstart" disabled>⌨️ Text-only</button><button id="mute" disabled>🎤 Mute mic</button><button id="interrupt" disabled>✋ Interrupt</button><button class="stop" id="end" disabled>⏹️ End session</button><button id="speaker">🔊 Enable speaker</button></div><div class="meter" aria-hidden="true"><span id="level"></span></div><div class="hint">AI-generated voice · Headphones recommended · Microphone is requested only when you start voice.</div><div id="error" role="alert"></div><div id="speakerNotice" class="notice" role="status"></div><div class="row"><input id="input" aria-label="Message to advisor" maxlength="4000" placeholder="Ask your travel advisor…" disabled><button id="send" disabled>📨 Send</button></div><div class="prompts"><button data-prompt="Help me choose a destination. Ask about my budget and interests first." disabled>🌍 Destination ideas</button><button data-prompt="Help me plan a family-friendly itinerary. Ask me for the destination and dates." disabled>🗺️ Plan itinerary</button><button data-prompt="Help me estimate a travel budget. Ask for the destination, travelers and duration. Use estimates, not live prices." disabled>💰 Budget guide</button><button data-prompt="Help me create a practical packing checklist for my trip." disabled>🎒 Packing list</button></div></div><div class="transcript"><div class="loghead"><strong>📝 Live conversation</strong><div><button id="export">⬇️ Export JSON</button> <button id="clear">🧹 Clear view</button></div></div><div id="log" tabindex="0" aria-label="Conversation transcript"><div id="empty">Your conversation will appear here.</div></div></div></div><details><summary>🔍 Connection diagnostics</summary><div id="diagnostics">Ready. API credentials remain on the server.</div></details><div id="activity">Ready when you are. Settings apply on the next session.</div><audio id="audio" autoplay></audio></div><script>
 const $=id=>document.getElementById(id);let args={},pc=null,dc=null,stream=null,requestId=null,connecting=false,active=false,responding=false,muted=false,rows=[],timer=null,started=0,maxMinutes=10,handshakeTimer=null,audioCtx=null,raf=null,sessionNo=0;
 function post(type,payload={}){window.parent.postMessage({isStreamlitMessage:true,type,...payload},'*')}
-function resize(){post('streamlit:setFrameHeight',{height:document.documentElement.scrollHeight+8})}
+function resize(){post('streamlit:setFrameHeight',{height:Math.ceil($('panel').getBoundingClientRect().height)+8})}
 let debugLines=[];
 function debug(s){debugLines.push(new Date().toLocaleTimeString()+' · '+s);debugLines=debugLines.slice(-12);$('diagnostics').textContent=debugLines.join('\n')}
 function speakerNotice(s){$('speakerNotice').textContent=s;$('speakerNotice').style.display=s?'block':'none';resize()}
@@ -37,5 +37,45 @@ async function start(useMic){if(active||connecting||!args.enabled)return;error('
 function onEvent(raw){let e;try{e=JSON.parse(raw.data)}catch{return}const id=e.item_id||e.response_id||'current';switch(e.type){case 'input_audio_buffer.speech_started':state('You are speaking…');break;case 'input_audio_buffer.speech_stopped':state('Thinking…');break;case 'response.created':responding=true;state('Responding…');break;case 'conversation.item.input_audio_transcription.completed':message('user',id,e.transcript||'[No transcript]');break;case 'conversation.item.input_audio_transcription.failed':error('An audio transcription failed. You may continue speaking or type your message.');break;case 'response.output_audio_transcript.delta':case 'response.output_text.delta':message('assistant',id,e.delta||'',true);break;case 'response.output_audio_transcript.done':case 'response.output_text.done':message('assistant',id,e.transcript||e.text||'');break;case 'response.done':responding=false;state(muted?'Mic muted':stream?'Listening':'Text-only connected');if(e.response?.status==='failed')error('Response failed: '+(e.response.status_details?.error?.message||'Check API access and retry.'));break;case 'output_audio_buffer.stopped':case 'output_audio_buffer.cleared':state(muted?'Mic muted':stream?'Listening':'Text-only connected');break;case 'error':error(e.error?.message||'Realtime API error.');responding=false;break}}
 function textSend(text){text=text.trim();if(!text||!active)return;if(responding)interrupt();const id='msg_'+crypto.randomUUID().replaceAll('-','');if(send({type:'conversation.item.create',item:{id,type:'message',role:'user',content:[{type:'input_text',text}]}})){message('user',id,text);send({type:'response.create'});$('input').value='';state('Thinking…')}}
 $('start').onclick=()=>start(true);$('textstart').onclick=()=>start(false);$('end').onclick=()=>end();$('speaker').onclick=enableSpeaker;$('interrupt').onclick=interrupt;$('send').onclick=()=>textSend($('input').value);$('input').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();textSend($('input').value)}};document.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>textSend(b.dataset.prompt));$('mute').onclick=()=>{muted=!muted;stream?.getAudioTracks().forEach(t=>t.enabled=!muted);$('mute').textContent=muted?'🔇 Unmute mic':'🎤 Mute mic';state(muted?'Mic muted':'Listening')};$('clear').onclick=()=>{rows=[];renderRows();$('activity').textContent='Transcript view cleared. Model memory is unchanged; end and reconnect to reset context.'};$('export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify({exported_at:new Date().toISOString(),messages:rows},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='traveltalk-conversation.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
-window.addEventListener('message',async e=>{if(e.source!==window.parent||e.data.type!=='streamlit:render')return;args=e.data.args||{};controls();const reply=args.reply;if(reply?.request_id===requestId&&pc&&connecting){if(reply.error){error(reply.error);end('Could not connect')}else if(reply.sdp&&!pc.currentRemoteDescription){try{debug('API handshake accepted; negotiating audio');await pc.setRemoteDescription({type:'answer',sdp:reply.sdp})}catch(err){error('Audio negotiation failed. Please reconnect.');end('Could not connect')}}}resize()});window.addEventListener('beforeunload',()=>end());window.addEventListener('pagehide',()=>end());new ResizeObserver(resize).observe($('panel'));post('streamlit:componentReady',{apiVersion:1});resize();
+// One SDP answer per peer connection. Streamlit may send repeated render events.
+let answerInFlight = null;
+async function applyAnswer(reply) {
+    const peer = pc;
+    const id = requestId;
+    if (!peer || !connecting || !id || reply?.request_id !== id) return;
+    if (reply.error) { error(reply.error); end('Could not connect'); return; }
+    if (!reply.sdp || answerInFlight === peer) return;
+    if (peer.signalingState === 'stable' && peer.remoteDescription) return;
+    if (peer.signalingState !== 'have-local-offer') {
+        debug('Waiting for local offer; signaling state: ' + peer.signalingState);
+        return;
+    }
+    // Claim synchronously BEFORE awaiting; duplicate render events become no-ops.
+    answerInFlight = peer;
+    try {
+        debug('Applying API answer once; signaling: ' + peer.signalingState);
+        await peer.setRemoteDescription({type: 'answer', sdp: reply.sdp});
+        if (pc !== peer || requestId !== id) return;
+        debug('Audio answer applied; signaling: ' + peer.signalingState);
+        state('Connecting audio…');
+    } catch (err) {
+        // A cancelled/old call must not terminate a newer call.
+        if (pc !== peer || requestId !== id) return;
+        const name = String(err?.name || 'WebRTCError');
+        const detail = String(err?.message || 'No browser detail').slice(0, 500);
+        debug(name + ': ' + detail);
+        error('Audio negotiation failed (' + name + '). Open Connection diagnostics for the browser detail. End and reconnect, or use Chat & recorded voice.');
+        end('Could not connect');
+    } finally {
+        if (answerInFlight === peer) answerInFlight = null;
+    }
+}
+window.addEventListener('message', async e => {
+    if (e.source !== window.parent || e.data?.type !== 'streamlit:render') return;
+    args = e.data.args || {};
+    controls();
+    await applyAnswer(args.reply);
+    resize();
+});
+window.addEventListener('beforeunload',()=>end());window.addEventListener('pagehide',()=>end());new ResizeObserver(resize).observe($('panel'));post('streamlit:componentReady',{apiVersion:1});resize();
 </script></body></html>
