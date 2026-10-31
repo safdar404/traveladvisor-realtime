@@ -2,7 +2,6 @@ from pathlib import Path
 import base64
 import os
 import json
-import hashlib
 import streamlit as st
 import streamlit.components.v1 as components
 from dotenv import load_dotenv
@@ -21,12 +20,12 @@ voice_panel = components.declare_component('traveltalk_voice', path=str(frontend
 st.markdown('''<style>
 [data-testid="stAppViewContainer"]{background:radial-gradient(ellipse at top right,#30205255,transparent 55%),#0d1024;color:#f1efff}
 [data-testid="stHeader"]{background:#0d1024ee}[data-testid="stSidebar"]{background:#17182e}
-.block-container{padding:1rem 2rem 1rem!important;max-width:100%!important;width:100%!important}
+.block-container{padding:4rem 2rem 1rem!important;max-width:100%!important;width:100%!important}
 [data-testid="stSidebar"]{min-width:270px;max-width:320px}
 [data-testid="stAppViewContainer"] input,[data-testid="stAppViewContainer"] textarea{font-size:15px}
 [data-testid="stExpander"]{border-radius:14px;border-color:#4b4268}
 @media(min-width:1600px){.block-container{padding-left:3rem!important;padding-right:3rem!important}}
-@media(max-width:700px){.block-container{padding:1rem!important}}
+@media(max-width:700px){.block-container{padding:3.6rem 1rem 1rem!important}}
 h1,h2,h3{color:#f3f0ff}div.stButton>button,div.stDownloadButton>button{background:#33295a;color:#fff;border:1px solid #785cc0;border-radius:12px}
 .hero{display:flex;align-items:center;gap:16px;padding:16px;border:1px solid #65528c;border-radius:22px;background:linear-gradient(115deg,#26294d,#342044,#133d4a);margin-bottom:16px}
 .hero img{width:78px;height:78px;object-fit:cover;border-radius:23px}.hero h1{font-size:1.8rem;margin:0;line-height:1.1}.hero p{color:#d5d0eb;margin:8px 0}.tag{color:#88e7e5;font-weight:700;font-size:.75rem;letter-spacing:2px}
