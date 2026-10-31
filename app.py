@@ -7,9 +7,15 @@ from dotenv import load_dotenv
 from service import create_answer, session_config
 
 load_dotenv(override=False)
-ROOT = Path(__file__).parent
+ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title='TravelTalk · Realtime AI', page_icon='🎙️', layout='wide')
-voice_panel = components.declare_component('traveltalk_voice', path=str(ROOT / 'frontend'))
+frontend_dir = ROOT / 'frontend'
+if not (frontend_dir / 'index.html').is_file():
+    st.error('🎧 Voice frontend is missing from this deployment.')
+    st.info('Upload frontend/index.html into the frontend folder beside app.py in your GitHub repository, then reboot the app.')
+    st.code('app.py\nservice.py\nfrontend/\n    index.html\nassets/\n    agent.png\n.streamlit/\n    config.toml')
+    st.stop()
+voice_panel = components.declare_component('traveltalk_voice', path=str(frontend_dir))
 st.markdown('''<style>
 [data-testid="stAppViewContainer"]{background:radial-gradient(ellipse at top right,#30205255,transparent 55%),#0d1024;color:#f1efff}
 [data-testid="stHeader"]{background:#0d1024ee}[data-testid="stSidebar"]{background:#17182e}
